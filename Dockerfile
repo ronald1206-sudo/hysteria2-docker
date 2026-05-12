@@ -7,18 +7,18 @@ RUN apk add --no-cache ca-certificates curl bash unzip openssl caddy \
     && mv /tmp/sb/sing-box /usr/local/bin/ && chmod +x /usr/local/bin/sing-box \
     && rm -rf /tmp/sb*
 
-# 2. 建立目錄並生成自簽 TLS 憑證
-RUN mkdir -p /etc/sing-box && openssl req -x509 -nodes -newkey rsa:2048 \
-    -keyout /etc/sing-box/server.key -out /etc/sing-box/server.key \
-    -days 3650 -subj "/CN=hysteria2-docker.onrender.com"
+# 2. 建立目錄並寫入 sing-box 的 VLESS+WS 配置文件 (監聽內部 10001 埠)
+# 這裡內置了一個固定 UUID：66666666-6666-6666-6666-666666666666
+RUN mkdir -p /etc/sing-box && echo '{"log":{"level":"warn"},"inbounds":[{"type":"vless","listen":"127.0.0.1","listen_port":10001,"users":[{"id":"66666666-6666-6666-6666-666666666666"}],"vless_vless_transport_over_websocket":{"enabled":true,"path":"/ronald-vless"}}],"outbounds":[{"type":"direct"}]}' > /etc/sing-box/config.json
 
-# 3. 寫入 Hysteria 2 配置文件 (監聽內部 10001 埠)
-RUN echo '{"log":{"level":"warn"},"inbounds":[{"type":"hysteria2","listen":"0.0.0.0","listen_port":10001,"users":[{"password":"Ronald9988"}],"tls":{"enabled":true,"certificate_path":"/etc/sing-box/server.key","key_path":"/etc/sing-box/server.key"}}],"outbounds":[{"type":"direct"}]}' > /etc/sing-box/config.json
+# 3. 建立偽裝網頁
+RUN mkdir -p /usr/share/caddy && echo "<h1>Welcome to my Personal Site</h1>" > /usr/share/caddy/index.html
 
-# 4. 建立一個簡單的偽裝網頁，並讓 Caddy 監聽 Render 預設的 10000 埠
-RUN mkdir -p /usr/share/caddy && echo "<h1>Hello World</h1>" > /usr/share/caddy/index.html
+# 4. 寫入 Caddyfile：讓 Caddy 監聽 Render 預設的 10000 埠
+# 普通流量看網頁，當路徑匹配到 /ronald-vless 且是 WebSocket 時，自動轉發給 sing-box
+RUN echo -e ":10000 {\n root * /usr/share/caddy\n file_server\n @proxy {\n header Connection *Upgrade*\n header Upgrade websocket\n path /ronald-vless\n }\n reverse_proxy @proxy 127.0.0.1:10001\n}" > /etc/Caddyfile
 
 EXPOSE 10000
 
-# 5. 同時啟動網頁（應付 Render 檢查）以及 sing-box（核心代理）
-ENTRYPOINT ["sh", "-c", "caddy file-server --listen :10000 --root /usr/share/caddy & sing-box run -c /etc/sing-box/config.json"]
+# 5. 同步啟動 Caddy（應付 Render 埠掃描）和 sing-box（核心代理）
+ENTRYPOINT ["sh", "-c", "caddy run --config /etc/Caddyfile & sing-box run -c /etc/sing-box/config.json"]
