@@ -7,8 +7,8 @@ RUN apk add --no-cache ca-certificates curl bash unzip openssl caddy \
     && mv /tmp/sb/sing-box /usr/local/bin/ && chmod +x /usr/local/bin/sing-box \
     && rm -rf /tmp/sb*
 
-# 2. 建立目錄並寫入 sing-box 的 VLESS+WS 配置文件 (已將 id 修正為 uuid)
-RUN mkdir -p /etc/sing-box && echo '{"log":{"level":"warn"},"inbounds":[{"type":"vless","listen":"127.0.0.1","listen_port":10001,"users":[{"uuid":"66666666-6666-6666-6666-666666666666"}],"vless_vless_transport_over_websocket":{"enabled":true,"path":"/ronald-vless"}}],"outbounds":[{"type":"direct"}]}' > /etc/sing-box/config.json
+# 2. 建立目錄並寫入 sing-box 的 VLESS+WS 配置文件 (已修正為官方標準 vless_transport_over_websocket)
+RUN mkdir -p /etc/sing-box && echo '{"log":{"level":"warn"},"inbounds":[{"type":"vless","listen":"127.0.0.1","listen_port":10001,"users":[{"uuid":"66666666-6666-6666-6666-666666666666"}],"vless_transport_over_websocket":{"enabled":true,"path":"/ronald-vless"}}],"outbounds":[{"type":"direct"}]}' > /etc/sing-box/config.json
 
 # 3. 建立偽裝網頁
 RUN mkdir -p /usr/share/caddy && echo "<h1>Welcome to my Personal Site</h1>" > /usr/share/caddy/index.html
